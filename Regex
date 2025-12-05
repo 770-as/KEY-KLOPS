@@ -1,0 +1,83 @@
+import re
+from typing import Dict, Optional
+
+# The core Regular Expression pattern for the Common Log Format (CLF).
+# This pattern is highly robust and captures all standard fields.
+#
+# 1. (\S+)                   - Remote Host/IP Address (e.g., 127.0.0.1)
+# 2. (\S+)                   - Remote Logname (often '-')
+# 3. (\S+)                   - User ID (often '-')
+# 4. \[([^\]]+)\]             - Time (e.g., [05/Dec/2025:10:00:00 +0100]) - Group 4
+# 5. "([^"]+)"               - Request Line (e.g., "GET /index.html HTTP/1.1") - Group 5
+# 6. (\d{3})                 - Status Code (e.g., 200, 404)
+# 7. (\S+)                   - Bytes Transferred (e.g., 4500 or '-')
+LOG_PATTERN = re.compile(
+    r'^(\S+) (\S+) (\S+) \[([^\]]+)\] "([^"]+)" (\d{3}) (\S+)$'
+)
+
+def parse_log_line(log_line: str) -> Optional[Dict[str, str]]:
+    """
+    Parses a single Apache Common Log Format (CLF) line using a regular expression
+    and returns a dictionary of key-value pairs.
+
+    Args:
+        log_line: A single string representing one log entry.
+
+    Returns:
+        A dictionary containing the parsed fields if successful, or None if the
+        line does not match the CLF pattern.
+    """
+    match = LOG_PATTERN.match(log_line)
+
+    if match:
+        # Extract the matched groups from the regex
+        groups = match.groups()
+
+        # Split the complex request line (Group 5) into its components
+        request_parts = groups[4].split()
+        method = request_parts[0] if len(request_parts) > 0 else "UNKNOWN"
+        endpoint = request_parts[1] if len(request_parts) > 1 else "UNKNOWN"
+        protocol = request_parts[2] if len(request_parts) > 2 else "UNKNOWN"
+
+        # The 'Bytes' field (Group 7) can be '-' if no data was transferred.
+        # We replace '-' with '0' for easier conversion later (if needed).
+        bytes_transferred = groups[6] if groups[6] != '-' else '0'
+
+        return {
+            "ip_address": groups[0],
+            "remote_logname": groups[1],
+            "user_id": groups[2],
+            "timestamp": groups[3],
+            "http_method": method,
+            "endpoint": endpoint,
+            "http_protocol": protocol,
+            "status_code": groups[5],
+            "bytes_transferred": bytes_transferred
+        }
+    else:
+        print(f"Warning: Failed to parse log line: {log_line.strip()}")
+        return None
+
+# --- Example Usage ---
+if __name__ == "__main__":
+    # Sample log data in Common Log Format (CLF)
+    sample_logs = [
+        # Normal 200 OK request
+        '10.20.30.40 - - [05/Dec/2025:14:30:10 +0000] "GET /api/user?id=123 HTTP/1.1" 200 1500',
+        # 404 File Not Found error
+        '203.0.113.12 - user_a [05/Dec/2025:14:30:15 +0000] "POST /page/missing.html HTTP/1.0" 404 321',
+        # Request with no bytes transferred (often represented by '-')
+        '192.168.1.1 - - [05/Dec/2025:14:30:22 +0000] "HEAD /status.xml HTTP/1.1" 200 -',
+        # An invalid line to test error handling
+        'This is not a valid log entry.'
+    ]
+
+    print("--- Parsing Web Server Logs ---\n")
+
+    for log in sample_logs:
+        parsed_data = parse_log_line(log)
+        if parsed_data:
+            print(f"✅ Success: Parsed Entry for IP {parsed_data['ip_address']}")
+            print(f"   Endpoint: {parsed_data['http_method']} {parsed_data['endpoint']}")
+            print(f"   Status: {parsed_data['status_code']}, Bytes: {parsed_data['bytes_transferred']}")
+            print("-" * 30)
