@@ -1,0 +1,56 @@
+# In Kubernetes, the process involves two separate manifest files: one to create the Secret resource and one to create the Pod (or Deployment) that consumes it.
+# Step 1: Create the Secret
+# You first define a Secret resource. The sensitive data must be Base64 encoded.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-db-secret
+type: Opaque
+data:
+  # Base64 encoding of 'prod-user'
+  DB_USERNAME: cHJvZC11c2Vy
+  # Base64 encoding of 'securepass123'
+  DB_PASSWORD: c2VjdXJlcGFzczEyMw==
+
+
+
+# You reference the secret in the Pod's specification (spec). The injection can be done in two primary ways:
+# A. Injecting Specific Keys (valueFrom: secretKeyRef)
+# This method is the most secure as it allows you to inject only the keys you need, giving you fine-grained control over the environment variable name.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app-pod
+spec:
+  containers:
+  - name: app-container
+    image: my-app-image:latest
+    env:
+    - name: APP_DB_USER           # The name of the ENV var in the container
+      valueFrom:
+        secretKeyRef:
+          name: my-app-db-secret  # Name of the K8s Secret resource
+          key: DB_USERNAME        # Key inside the Secret to use
+    - name: APP_DB_PASS
+      valueFrom:
+        secretKeyRef:
+          name: my-app-db-secret
+          key: DB_PASSWORD
+
+
+
+
+
+# This method injects every key-value pair from the Secret into the container environment. The key name in the Secret becomes the environment variable name.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app-pod-envfrom
+spec:
+  containers:
+  - name: app-container
+    image: my-app-image:latest
+    envFrom:
+    - secretRef:
+        name: my-app-db-secret # All keys from this secret are injected
