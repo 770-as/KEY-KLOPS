@@ -1,0 +1,20 @@
+ {
+  "containerDefinitions": [
+    {
+      "name": "my-app-container",
+      "image": "my-ecr-repo/my-app:prod",
+      "cpu": 256,
+      "memory": 512,
+      "essential": true,
+      "secrets": [
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:my-production-db-credentials:password::"
+        }
+      ],
+      "logConfiguration": { /* ... */ }
+    }
+  ],
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  /* ... other task settings ... */
+}
