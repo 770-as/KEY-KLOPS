@@ -1,0 +1,131 @@
+   #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+// Maximum size for any single argument string
+#define MAX_ARG_LEN 256
+// Initial capacity for the array of argument pointers
+#define INITIAL_CAPACITY 5
+
+// --- Function to tokenize and execute a command ---
+void execute_dynamic_command(char *line) {
+    // Pointers to the dynamically allocated argv array
+    char **argv = NULL;
+    size_t capacity = INITIAL_CAPACITY;
+    int arg_count = 0;
+
+    // 1. Initial Malloc: Allocate the initial array of char* pointers
+    argv = (char **)malloc(capacity * sizeof(char *));
+    if (argv == NULL) {
+        perror("initial malloc failed");
+        return;
+    }
+
+    // Use strtok_r for reentrant/thread-safe tokenization
+    char *token, *saveptr;
+
+    // Get the first token (the command itself)
+    token = strtok_r(line, " \t\n", &saveptr);
+    
+    // 2. Loop and Populate the Array
+    while (token != NULL) {
+        // Check if we need more space in the argv array
+        if (arg_count + 1 >= capacity) { // +1 to ensure space for the NULL terminator
+            capacity *= 2;
+            
+            // Realloc: Grow the array of pointers
+            char **new_argv = (char **)realloc(argv, capacity * sizeof(char *));
+            if (new_argv == NULL) {
+                perror("realloc failed");
+                // Clean up any previously stored arguments before returning
+                for (int i = 0; i < arg_count; i++) {
+                    free(argv[i]);
+                }
+                free(argv);
+                return;
+            }
+            argv = new_argv;
+        }
+
+        // Store the argument pointer (using strdup to copy the token string)
+        // argv[arg_count] = strdup(token);
+        // NOTE: For simplicity, we can sometimes just store the pointer to the token 
+        // if we are sure the token's memory won't change (as is the case with strtok_r 
+        // operating on a copy of the input line). For robustness against the token changing, 
+        // strdup is safer, but for this specific example, let's keep it simple:
+        
+        argv[arg_count] = token;
+        arg_count++;
+
+        // Get the next token (next argument)
+        token = strtok_r(NULL, " \t\n", &saveptr);
+    }
+    
+    // 3. NULL Termination: Crucial step for execvp
+    argv[arg_count] = NULL; 
+
+    // Safety check: Don't execute if no command was entered
+    if (arg_count == 0) {
+        free(argv);
+        return;
+    }
+
+    // --- Execute the Command (Using fork() and execvp()) ---
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child Process: Execute the command
+        printf("\nExecuting command: %s\n", argv[0]);
+        execvp(argv[0], argv);
+
+        // execvp only returns on failure
+        perror("execvp failed");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Parent Process: Wait for the child
+        wait(NULL);
+    } else {
+        // Fork failed
+        perror("fork failed");
+    }
+
+    // 4. Cleanup: Free the dynamically allocated array
+    // Note: We don't need to free the strings pointed to by argv[i] 
+    // because they are part of the original 'line' buffer.
+    free(argv); 
+}
+
+int main() {
+    char *input_line = NULL;
+    size_t len = 0;
+    ssize_t read;
+
+    printf("Dynamic Shell Simulator (type 'exit' to quit)\n");
+    
+    while (1) {
+        printf(">> ");
+        // Read the entire line of input from the user
+        read = getline(&input_line, &len, stdin);
+
+        if (read == -1) {
+            // EOF or error
+            break;
+        }
+
+        // Check for the exit command
+        if (strcmp(input_line, "exit\n") == 0) {
+            break;
+        }
+
+        // Execute the command
+        execute_dynamic_command(input_line);
+    }
+
+    if (input_line) {
+        free(input_line);
+    }
+    
+    return 0;
+}
