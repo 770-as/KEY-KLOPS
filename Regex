@@ -8,7 +8,7 @@ from typing import Dict, Optional
 # 2. (\S+)                   - Remote Logname (often '-')
 # 3. (\S+)                   - User ID (often '-')
 # 4. \[([^\]]+)\]             - Time (e.g., [05/Dec/2025:10:00:00 +0100]) - Group 4
-# 5. "([^"]+)"               - Request Line (e.g., "GET /index.html HTTP/1.1") - Group 5
+# 5. "([^"]+)"               - Request Line (e.g., "GET /index.html HTTP/1.1") - Group 5                
 # 6. (\d{3})                 - Status Code (e.g., 200, 404)
 # 7. (\S+)                   - Bytes Transferred (e.g., 4500 or '-')
 LOG_PATTERN = re.compile(
@@ -19,10 +19,8 @@ def parse_log_line(log_line: str) -> Optional[Dict[str, str]]:
     """
     Parses a single Apache Common Log Format (CLF) line using a regular expression
     and returns a dictionary of key-value pairs.
-
     Args:
         log_line: A single string representing one log entry.
-
     Returns:
         A dictionary containing the parsed fields if successful, or None if the
         line does not match the CLF pattern.
